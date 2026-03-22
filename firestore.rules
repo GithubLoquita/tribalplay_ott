@@ -1,0 +1,144 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // ===============================================================
+    // Assumed Data Model
+    // ===============================================================
+    //
+    // Collection: content
+    // Document ID: contentId
+    // Fields:
+    //   - title: string (required)
+    //   - description: string (required)
+    //   - thumbnailUrl: string (required, URL)
+    //   - videoUrl: string (required, URL)
+    //   - category: string (required, enum: Trending, Originals, Movies, Web Series, Music)
+    //   - genre: list (required, strings)
+    //   - duration: string (optional)
+    //   - rating: number (optional, 0-10)
+    //   - releaseYear: number (optional)
+    //   - isPremium: bool (required)
+    //   - createdAt: timestamp (optional)
+    //
+    // Collection: users
+    // Document ID: userId (matches Auth UID)
+    // Fields:
+    //   - uid: string (required, matches Auth UID)
+    //   - email: string (required, email format)
+    //   - displayName: string (optional)
+    //   - role: string (required, enum: user, admin)
+    //   - myList: list (optional, strings of content IDs)
+    //   - subscriptionStatus: string (required, enum: free, premium)
+    //
+    // Collection: history
+    // Document ID: historyId
+    // Fields:
+    //   - userId: string (required, matches Auth UID)
+    //   - contentId: string (required, matches contentId)
+    //   - progress: number (required, positive)
+    //   - watchedAt: timestamp (required)
+    //
+    // ===============================================================
+
+    // ===============================================================
+    // Helper Functions
+    // ===============================================================
+
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+
+    function isOwner(userId) {
+      return isAuthenticated() && request.auth.uid == userId;
+    }
+
+    function isAdmin() {
+      return isAuthenticated() &&
+        (get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin' ||
+          (request.auth.token.email == "hembramsandip990@gmail.com" && request.auth.token.email_verified == true));
+    }
+
+    function hasRequiredFields(fields) {
+      return request.resource.data.keys().hasAll(fields);
+    }
+
+    function hasOnlyAllowedFields(fields) {
+      return request.resource.data.keys().hasOnly(fields);
+    }
+
+    function isValidUrl(url) {
+      return url is string && (url.matches("^https://.*") || url.matches("^http://.*"));
+    }
+
+    function isValidEmail(email) {
+      return email is string && email.matches("^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\\.[a-zA-Z]{2,}$");
+    }
+
+    // ===============================================================
+    // Domain Validators
+    // ===============================================================
+
+    function isValidContent(data) {
+      return hasRequiredFields(['title', 'description', 'thumbnailUrl', 'videoUrl', 'category', 'genre', 'isPremium']) &&
+        data.title is string && data.title.size() > 0 && data.title.size() < 200 &&
+        data.description is string && data.description.size() > 0 && data.description.size() < 2000 &&
+        isValidUrl(data.thumbnailUrl) &&
+        isValidUrl(data.videoUrl) &&
+        data.category in ['Trending', 'Originals', 'Movies', 'Web Series', 'Music'] &&
+        data.genre is list && data.genre.size() > 0 && data.genre.size() < 10 &&
+        data.isPremium is bool;
+    }
+
+    function isValidUser(data) {
+      return hasRequiredFields(['uid', 'email', 'role', 'subscriptionStatus']) &&
+        data.uid == request.auth.uid &&
+        isValidEmail(data.email) &&
+        data.role in ['user', 'admin'] &&
+        data.subscriptionStatus in ['free', 'premium'] &&
+        (!('displayName' in data) || (data.displayName is string && data.displayName.size() < 100)) &&
+        (!('myList' in data) || (data.myList is list && data.myList.size() < 1000));
+    }
+
+    function isValidHistory(data) {
+      return hasRequiredFields(['userId', 'contentId', 'progress', 'watchedAt']) &&
+        data.userId == request.auth.uid &&
+        data.contentId is string &&
+        data.progress is number && data.progress >= 0 &&
+        data.watchedAt is timestamp;
+    }
+
+    // ===============================================================
+    // Rules
+    // ===============================================================
+
+    // Content: Publicly readable, but only admins can write
+    match /content/{contentId} {
+      allow read: if true; // OTT content metadata is usually public
+      allow create: if isAdmin() && isValidContent(request.resource.data);
+      allow update: if isAdmin() && isValidContent(request.resource.data);
+      allow delete: if isAdmin();
+    }
+
+    // Users: Only owner can read/write their own profile. Admins can read all.
+    match /users/{userId} {
+      allow read: if isOwner(userId) || isAdmin();
+      allow create: if isOwner(userId) && isValidUser(request.resource.data) && request.resource.data.role == 'user';
+      allow update: if isOwner(userId) && isValidUser(request.resource.data) && request.resource.data.role == resource.data.role;
+      allow delete: if isAdmin();
+    }
+
+    // History: Only owner can read/write their own history.
+    match /history/{historyId} {
+      allow read: if isAuthenticated() && resource.data.userId == request.auth.uid;
+      allow create: if isAuthenticated() && isValidHistory(request.resource.data);
+      allow update: if isAuthenticated() && isValidHistory(request.resource.data) && resource.data.userId == request.auth.uid;
+      allow delete: if isAuthenticated() && resource.data.userId == request.auth.uid;
+    }
+
+    // Default Deny
+    match /{path=**} {
+      allow read, write: if false;
+    }
+  }
+}

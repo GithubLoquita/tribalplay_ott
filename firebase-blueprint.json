@@ -1,0 +1,63 @@
+{
+  "entities": {
+    "Content": {
+      "title": "Content",
+      "description": "Metadata for a movie, series, or music video.",
+      "type": "object",
+      "properties": {
+        "title": { "type": "string", "description": "The title of the content." },
+        "description": { "type": "string", "description": "A detailed summary of the content." },
+        "thumbnailUrl": { "type": "string", "format": "uri", "description": "URL to the content's thumbnail image." },
+        "videoUrl": { "type": "string", "format": "uri", "description": "URL to the content's video file." },
+        "category": { "type": "string", "enum": ["Trending", "Originals", "Movies", "Web Series", "Music"], "description": "The main category of the content." },
+        "genre": { "type": "array", "items": { "type": "string" }, "description": "List of genres associated with the content." },
+        "duration": { "type": "string", "description": "The length of the content (e.g., '2h 15m')." },
+        "rating": { "type": "number", "description": "The content's rating (0-10)." },
+        "releaseYear": { "type": "integer", "description": "The year the content was released." },
+        "isPremium": { "type": "boolean", "description": "Whether the content requires a premium subscription." },
+        "createdAt": { "type": "string", "format": "date-time", "description": "When the content was added to the platform." }
+      },
+      "required": ["title", "description", "thumbnailUrl", "videoUrl", "category", "genre", "isPremium"]
+    },
+    "UserProfile": {
+      "title": "UserProfile",
+      "description": "User profile and account information.",
+      "type": "object",
+      "properties": {
+        "uid": { "type": "string", "description": "The user's unique ID from Firebase Auth." },
+        "email": { "type": "string", "format": "email", "description": "The user's email address." },
+        "displayName": { "type": "string", "description": "The user's display name." },
+        "role": { "type": "string", "enum": ["user", "admin"], "description": "The user's role on the platform." },
+        "myList": { "type": "array", "items": { "type": "string" }, "description": "List of content IDs in the user's 'My List'." },
+        "subscriptionStatus": { "type": "string", "enum": ["free", "premium"], "description": "The user's subscription tier." }
+      },
+      "required": ["uid", "email", "role", "subscriptionStatus"]
+    },
+    "WatchHistory": {
+      "title": "WatchHistory",
+      "description": "A record of a user's progress on a specific piece of content.",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string", "description": "The ID of the user who watched the content." },
+        "contentId": { "type": "string", "description": "The ID of the content being watched." },
+        "progress": { "type": "number", "description": "The user's progress in seconds." },
+        "watchedAt": { "type": "string", "format": "date-time", "description": "When the user last watched this content." }
+      },
+      "required": ["userId", "contentId", "progress", "watchedAt"]
+    }
+  },
+  "firestore": {
+    "/content/{contentId}": {
+      "schema": "Content",
+      "description": "Collection of all available streaming content."
+    },
+    "/users/{userId}": {
+      "schema": "UserProfile",
+      "description": "Collection of user profile data."
+    },
+    "/history/{historyId}": {
+      "schema": "WatchHistory",
+      "description": "Collection of user watch history and progress."
+    }
+  }
+}

@@ -1,0 +1,8 @@
+{
+  "name": "TribalPlay",
+  "description": "A premium Santali-focused OTT streaming platform showcasing movies, web series, and cultural content with a modern Netflix-style experience.",
+  "requestFramePermissions": [
+    "camera",
+    "microphone"
+  ]
+}
